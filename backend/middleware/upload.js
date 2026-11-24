@@ -6,6 +6,9 @@ const storage = multer.memoryStorage();
 
 const multerInstance = multer({
     storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024,
+    },
     fileFilter: (req, file, cb) => {
         const allowed = ["image/jpeg", "image/png", "image/webp"];
         if (allowed.includes(file.mimetype)) {
@@ -30,17 +33,36 @@ const upload = {
 const uploadToCloudinary = (req, res, next) => {
     if (!req.file) return next();
 
-    const stream = cloudinary.uploader.upload_stream(
-        { folder: "profile-pictures" },
-        (error, result) => {
-            if (error) return next(error);
-            req.file.path = result.secure_url;
-            req.file.filename = result.public_id;
-            next();
-        }
-    );
+    const uploadOnce = (attempt) => {
+        const stream = cloudinary.uploader.upload_stream(
+            {
+                folder: "profile-pictures",
+                resource_type: "image",
+                timeout: 120000,
+            },
+            (error, result) => {
+                if (!error) {
+                    req.file.path = result.secure_url;
+                    req.file.filename = result.public_id;
+                    return next();
+                }
 
-    Readable.from(req.file.buffer).pipe(stream);
+                const retryable = ["ETIMEDOUT", "ESOCKETTIMEDOUT", "ECONNRESET", "EPIPE"].includes(error.code);
+                if (retryable && attempt < 2) {
+                    return setTimeout(() => uploadOnce(attempt + 1), 500);
+                }
+
+                error.message = error.code === "ETIMEDOUT"
+                    ? "Profile upload timed out. Check your connection and try again."
+                    : error.message;
+                return next(error);
+            }
+        );
+
+        Readable.from(req.file.buffer).pipe(stream);
+    };
+
+    uploadOnce(1);
 };
 
 module.exports = { upload, uploadToCloudinary };

@@ -152,20 +152,23 @@ exports.changeProfilePicture = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        if (user.profileImage?.publicId) {
-            await cloudinary.uploader.destroy(user.profileImage.publicId);
-        }
-
         if (!req.file) {
             return res.status(400).json({ message: "No file uploaded" });
         }
 
+        const previousPublicId = user.profileImage?.publicId;
         user.profileImage = {
             url: req.file.path,
             publicId: req.file.filename,
         };
 
         await user.save();
+
+        if (previousPublicId && previousPublicId !== req.file.filename) {
+            cloudinary.uploader.destroy(previousPublicId).catch((error) => {
+                console.error("Failed to remove previous profile image:", error.message);
+            });
+        }
 
         res.json({
             success: true,

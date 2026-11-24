@@ -1,8 +1,7 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
 
-// const API_URL = "http://localhost:5550/api/users";
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5550/api/users";
 const getStoredAuth = () => {
     const accessToken = localStorage.getItem("accessToken");
     const refreshToken = localStorage.getItem("refreshToken");
